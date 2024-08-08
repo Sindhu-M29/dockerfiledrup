@@ -1,0 +1,77 @@
+# Use the latest Ubuntu image
+FROM ubuntu:latest
+
+# Install prerequisites and add the Ondřej Surý PPA for PHP
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    curl \
+    gnupg \
+    && add-apt-repository ppa:ondrej/php \
+    && apt-get update
+
+# Install Apache and PHP 8.1 with necessary extensions
+RUN apt-get install -y \
+    apache2 \
+    php8.1 \
+    php8.1-fpm \
+    php8.1-gd \
+    php8.1-intl \
+    php8.1-curl \
+    php8.1-opcache \
+    php8.1-fileinfo \
+    php8.1-mysqlnd \
+    php8.1-dom \
+    php8.1-mysql \
+    php8.1-pdo \
+    php8.1-mbstring \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libicu-dev \
+    libxml2-dev \
+    git \
+    unzip \
+    zip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Install Composer globally
+RUN cd /var/www/html \
+    && php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+    && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+    && php -r "unlink('composer-setup.php');"
+
+# Verify Composer installation
+RUN composer --version
+
+# Copy Apache configuration file
+COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
+
+# Copy application files
+COPY drupal /var/www/html
+
+WORKDIR /var/www/html
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html
+
+#installing drush
+RUN composer require drush/drush \
+    && ./vendor/bin/drush --version
+
+#cache rebuild
+RUN ./vendor/bin/drush cr
+
+# Run Composer install
+RUN composer update
+
+# Enable Apache modules
+RUN a2enmod rewrite
+
+# Expose port 80
+EXPOSE 80
+
+# Start Apache in the foreground
+CMD ["apache2-foreground"]
